@@ -1,0 +1,9 @@
+*.exe
+
+/bin
+/dist
+
+data/*.json
+data/*.pdf
+
+*.log
