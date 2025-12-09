@@ -3,13 +3,14 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"link-checker/pkg/checker"
-	"link-checker/pkg/pdf"
-	"link-checker/pkg/storage"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"linkChecker/internal/checker"
+	"linkChecker/internal/pdf"
+	"linkChecker/internal/storage"
 )
 
 type Handler struct {
@@ -55,26 +56,25 @@ func (h *Handler) HandleCheckLinks(w http.ResponseWriter, r *http.Request) {
 
 	batchID := h.storage.SaveBatch(req.Links)
 
-	h.storage.UpdateBatch(batchID, []any{}, "processing")
+	h.storage.UpdateBatch(batchID, []storage.LinkResult{}, "processing")
 
 	go func() {
 		results := h.checker.CheckLinks(req.Links)
 
-		var resultInterfaces []any
+		// Convert checker results to storage LinkResult format
+		var linkResults []storage.LinkResult
 		for _, result := range results {
-			resultMap := map[string]any{
-				"url":        result.URL,
-				"status":     result.Status,
-				"available":  result.Available,
-				"checked_at": result.CheckedAt,
+			linkResult := storage.LinkResult{
+				URL:       result.URL,
+				Status:    result.Status,
+				Available: result.Available,
+				CheckedAt: result.CheckedAt,
+				Error:     result.Error,
 			}
-			if result.Error != "" {
-				resultMap["error"] = result.Error
-			}
-			resultInterfaces = append(resultInterfaces, resultMap)
+			linkResults = append(linkResults, linkResult)
 		}
 
-		h.storage.UpdateBatch(batchID, resultInterfaces, "completed")
+		h.storage.UpdateBatch(batchID, linkResults, "completed")
 	}()
 
 	w.Header().Set("Content-Type", "application/json")

@@ -2,16 +2,18 @@ package main
 
 import (
 	"context"
-	"link-checker/internal/api"
-	"link-checker/pkg/checker"
-	"link-checker/pkg/pdf"
-	"link-checker/pkg/storage"
+	"errors"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"linkChecker/internal/api"
+	"linkChecker/internal/checker"
+	"linkChecker/internal/pdf"
+	"linkChecker/internal/storage"
 )
 
 const (
@@ -35,7 +37,10 @@ func main() {
 		resumeProcessing(store, pendingBatches)
 	}
 
-	linkChecker := checker.NewLinkChecker(timeout)
+	linkChecker, err := checker.NewLinkChecker(timeout)
+	if err != nil {
+		log.Fatalf("Failed to initialize link checker: %v", err)
+	}
 	pdfGen := pdf.NewGenerator()
 
 	handler := api.NewHandler(linkChecker, store, pdfGen)
@@ -58,7 +63,7 @@ func main() {
 
 	go func() {
 		log.Printf("Server started on http://localhost:%s", port)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Server error: %v", err)
 		}
 	}()
@@ -81,31 +86,33 @@ func main() {
 }
 
 func resumeProcessing(store *storage.Storage, pendingBatches []*storage.LinkBatch) {
-	linkChecker := checker.NewLinkChecker(timeout)
+	linkChecker, err := checker.NewLinkChecker(timeout)
+	if err != nil {
+		log.Fatalf("Failed to initialize link checker: %v", err)
+	}
 
 	for _, batch := range pendingBatches {
 		go func(b *storage.LinkBatch) {
 			log.Printf("Resuming batch %d with %d links\n", b.BatchID, len(b.URLs))
 
-			store.UpdateBatch(b.BatchID, []any{}, "processing")
+			store.UpdateBatch(b.BatchID, []storage.LinkResult{}, "processing")
 
 			results := linkChecker.CheckLinks(b.URLs)
 
-			var resultInterfaces []any
+			// Convert checker results to storage LinkResult format
+			var linkResults []storage.LinkResult
 			for _, result := range results {
-				resultMap := map[string]any{
-					"url":        result.URL,
-					"status":     result.Status,
-					"available":  result.Available,
-					"checked_at": result.CheckedAt,
+				linkResult := storage.LinkResult{
+					URL:       result.URL,
+					Status:    result.Status,
+					Available: result.Available,
+					CheckedAt: result.CheckedAt,
+					Error:     result.Error,
 				}
-				if result.Error != "" {
-					resultMap["error"] = result.Error
-				}
-				resultInterfaces = append(resultInterfaces, resultMap)
+				linkResults = append(linkResults, linkResult)
 			}
 
-			store.UpdateBatch(b.BatchID, resultInterfaces, "completed")
+			store.UpdateBatch(b.BatchID, linkResults, "completed")
 			log.Printf("Batch %d completed\n", b.BatchID)
 		}(batch)
 	}

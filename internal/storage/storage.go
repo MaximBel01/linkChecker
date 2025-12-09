@@ -10,13 +10,22 @@ import (
 	"time"
 )
 
+// LinkResult represents the result of checking a single URL
+type LinkResult struct {
+	URL       string `json:"url"`
+	Status    int    `json:"status"`
+	Available bool   `json:"available"`
+	CheckedAt string `json:"checked_at"`
+	Error     string `json:"error,omitempty"`
+}
+
 type LinkBatch struct {
-	BatchID   int64    `json:"batch_id"`
-	URLs      []string `json:"urls"`
-	Results   []any    `json:"results"`
-	CreatedAt string   `json:"created_at"`
-	Status    string   `json:"status"`
-	Error     string   `json:"error,omitempty"`
+	BatchID   int64        `json:"batch_id"`
+	URLs      []string     `json:"urls"`
+	Results   []LinkResult `json:"results"`
+	CreatedAt string       `json:"created_at"`
+	Status    string       `json:"status"`
+	Error     string       `json:"error,omitempty"`
 }
 
 type Storage struct {
@@ -53,7 +62,7 @@ func (s *Storage) SaveBatch(urls []string) int64 {
 		URLs:      urls,
 		CreatedAt: time.Now().Format(time.RFC3339),
 		Status:    "pending",
-		Results:   make([]interface{}, 0),
+		Results:   make([]LinkResult, 0),
 	}
 
 	s.batches[s.nextID] = batch
@@ -78,7 +87,7 @@ func (s *Storage) GetBatch(batchID int64) (*LinkBatch, error) {
 	return batch, nil
 }
 
-func (s *Storage) UpdateBatch(batchID int64, results []interface{}, status string) error {
+func (s *Storage) UpdateBatch(batchID int64, results []LinkResult, status string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

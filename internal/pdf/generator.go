@@ -2,8 +2,9 @@ package pdf
 
 import (
 	"fmt"
-	"link-checker/pkg/storage"
 	"time"
+
+	"linkChecker/internal/storage"
 
 	"github.com/phpdave11/gofpdf"
 )
@@ -69,12 +70,7 @@ func (g *Generator) addBatchToReport(pdf *gofpdf.Fpdf, batch *storage.LinkBatch)
 		pdf.SetFont("helvetica", "", 8)
 		pdf.SetFillColor(245, 245, 245)
 
-		for i, resultInterface := range batch.Results {
-			result, ok := resultInterface.(map[string]interface{})
-			if !ok {
-				continue
-			}
-
+		for i, result := range batch.Results {
 			fill := i%2 == 0
 			if fill {
 				pdf.SetFillColor(245, 245, 245)
@@ -82,14 +78,14 @@ func (g *Generator) addBatchToReport(pdf *gofpdf.Fpdf, batch *storage.LinkBatch)
 				pdf.SetFillColor(255, 255, 255)
 			}
 
-			url := fmt.Sprintf("%v", result["url"])
+			url := result.URL
 			if len(url) > 35 {
 				url = url[:32] + "..."
 			}
 
-			status := fmt.Sprintf("%v", result["status"])
-			available := fmt.Sprintf("%v", result["available"])
-			checkedAt := fmt.Sprintf("%v", result["checked_at"])
+			status := fmt.Sprintf("%d", result.Status)
+			available := fmt.Sprintf("%t", result.Available)
+			checkedAt := result.CheckedAt
 			if len(checkedAt) > 12 {
 				checkedAt = checkedAt[:10]
 			}
@@ -128,11 +124,18 @@ func getCurrentTime() string {
 func ConvertResultsForPDF(results any) []map[string]any {
 	var converted []map[string]any
 
-	if resultSlice, ok := results.([]any); ok {
+	if resultSlice, ok := results.([]storage.LinkResult); ok {
 		for _, r := range resultSlice {
-			if m, ok := r.(map[string]any); ok {
-				converted = append(converted, m)
+			resultMap := map[string]any{
+				"url":        r.URL,
+				"status":     r.Status,
+				"available":  r.Available,
+				"checked_at": r.CheckedAt,
 			}
+			if r.Error != "" {
+				resultMap["error"] = r.Error
+			}
+			converted = append(converted, resultMap)
 		}
 	}
 

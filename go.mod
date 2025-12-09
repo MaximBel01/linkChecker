@@ -1,5 +1,5 @@
-module link-checker
+module linkChecker
 
-go 1.21
+go 1.25
 
 require github.com/phpdave11/gofpdf v1.4.3
